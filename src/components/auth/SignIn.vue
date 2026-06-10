@@ -9,7 +9,7 @@
                     <p class="login-box-msg">Sign in to start your session</p>
                     <form @submit.prevent="signIn">
                         <div class="input-group mb-3">
-                            <input v-model="user.email" type="email" class="form-control" placeholder="Email"
+                            <input type="email" v-model="user.email" class="form-control" placeholder="Email"
                                 :class="{ 'is-invalid': !!userError.email }" />
                             <div class="input-group-append">
                                 <div class="input-group-text">
@@ -50,8 +50,9 @@
 </template>
 
 <script setup>
-import { reactive } from "vue";
 import { useRouter } from "vue-router";
+import { reactive } from "vue";
+import { LoadingModal, MessageModal, CloseModal } from "@/functions/swal";
 
 const router = useRouter();
 
@@ -65,10 +66,29 @@ const userError = reactive({
     password: "",
 });
 
-async function signIn() {
-    // userError.email = "email error";
-    // userError.password = "password error";
+const defaultUser = JSON.parse(JSON.stringify(user)); // deep copy to preserve the initial state
+const defaultUserError = JSON.parse(JSON.stringify(userError));
 
-    router.replace({ name: "Dashboard" });
+function resetAllState() {
+    Object.assign(user, defaultUser);
+    Object.assign(userError, defaultUserError);
+}
+
+async function signIn() {
+    try {
+        LoadingModal('Signing In...');
+
+        await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate API call
+
+        resetAllState();
+        CloseModal();
+        router.replace({ name: "Dashboard" });
+    } catch (error) {
+        const { response } = error;
+        if (!response) {
+            return MessageModal({ icon: "error", title: "Error", text: error.message });
+        }
+        //!!! Handle validation errors from the server
+    }
 }
 </script>
