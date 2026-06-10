@@ -52,7 +52,12 @@
 <script setup>
 import { useRouter } from "vue-router";
 import { reactive } from "vue";
+import { apiSignIn } from "@/functions/api/auth";
 import { LoadingModal, MessageModal, CloseModal } from "@/functions/swal";
+
+// Uncomment the following lines if you have a user store set up
+// import { useUserStore } from "@/stores/user";
+// const userStore = useUserStore();
 
 const router = useRouter();
 
@@ -66,7 +71,7 @@ const userError = reactive({
     password: "",
 });
 
-const defaultUser = JSON.parse(JSON.stringify(user)); // deep copy to preserve the initial state
+const defaultUser = JSON.parse(JSON.stringify(user));
 const defaultUserError = JSON.parse(JSON.stringify(userError));
 
 function resetAllState() {
@@ -77,18 +82,31 @@ function resetAllState() {
 async function signIn() {
     try {
         LoadingModal('Signing In...');
+        const response = await apiSignIn(user);
+        const { data } = response;
 
-        await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate API call
+        // Uncomment the following lines if you have a user store set up
+        // userStore.setState(data.user);
+        // userStore.setSanctumToken(data.token);
 
         resetAllState();
-        CloseModal();
         router.replace({ name: "Dashboard" });
+        return CloseModal();
     } catch (error) {
         const { response } = error;
         if (!response) {
             return MessageModal({ icon: "error", title: "Error", text: error.message });
         }
-        //!!! Handle validation errors from the server
+        const { status, data } = response;
+        if (status === 422) {
+            Object.keys(userError).forEach((key) => {
+                userError[key] = data.errors[key]
+                    ? data.errors[key][0]
+                    : "";
+            });
+            return CloseModal();
+        }
+        return MessageModal({ icon: "error", title: "Error", text: data.message });
     }
 }
 </script>
