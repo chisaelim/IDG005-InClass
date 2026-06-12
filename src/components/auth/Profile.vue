@@ -17,6 +17,7 @@
                     </div>
                 </div>
             </div>
+            <!-- /.container-fluid -->
         </section>
 
         <!-- Main content -->
@@ -108,7 +109,14 @@
 import emptyImage from "@/assets/images/emptyImage.png";
 import { reactive } from "vue";
 import { useUserStore } from '@/stores/user';
+import { CloseModal, LoadingModal, MessageModal } from "@/functions/swal";
+import { useRouter } from "vue-router";
+import {
+    apiChangePassword,
+} from "@/functions/api/auth";
+
 const userStore = useUserStore();
+const router = useRouter();
 
 const user = reactive({
     current_password: "",
@@ -121,8 +129,41 @@ const userError = reactive({
     new_password: "",
 });
 
-async function savePassword() {
 
+const defaultUser = JSON.parse(JSON.stringify(user));
+const defaultUserError = JSON.parse(JSON.stringify(userError));
 
+function resetAllState() {
+    Object.assign(user, defaultUser);
+    Object.assign(userError, defaultUserError);
 }
+
+async function savePassword() {
+    try {
+        LoadingModal('Saving password...');
+        const response = await apiChangePassword(
+            user.current_password,
+            user.new_password,
+            user.new_password_confirmation
+        );
+        resetAllState();
+        await MessageModal({ icon: "success", title: "Success", text: response.data.message, }, () => router.push({ name: "SignIn" }));
+    } catch (error) {
+        const { response } = error;
+        if (!response) {
+            return MessageModal({ icon: "error", title: "Error", text: error.message });
+        }
+        const { status, data } = response;
+        if (status === 422) {
+            Object.keys(userError).forEach((key) => {
+                userError[key] = data.errors[key]
+                    ? data.errors[key][0]
+                    : "";
+            });
+            return CloseModal();
+        }
+        return MessageModal({ icon: "error", title: "Error", text: data.message });
+    }
+}
+
 </script>
