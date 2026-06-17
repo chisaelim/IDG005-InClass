@@ -29,8 +29,23 @@
                         <div class="card card-primary card-outline">
                             <div class="card-body box-profile">
                                 <div class="text-center">
-                                    <img class="profile-user-img img-fluid img-circle" :src="emptyImage"
+                                    <img class="profile-user-img img-fluid img-circle" :src="tempImage"
                                         alt="User profile picture" />
+                                    <input @change="onChangeImage" type="file" class="d-none"
+                                        :accept="allowedExtensions.map((ext) => '.' + ext).join(', ')"
+                                        id="file-input" />
+                                    <div class="mt-1">
+                                        <label :for="'file-input'">
+                                            <a type="button" class="m-1 btn btn-primary btn-sm"><i
+                                                    class="fas fa-upload"></i></a>
+                                        </label>
+                                        <a type="button" @click="onDeleteImage()" class="m-1 btn btn-danger btn-sm"><i
+                                                class="fas fa-trash"></i></a>
+                                        <a type="button" @click="onResetImage()" class="m-1 btn btn-secondary btn-sm"><i
+                                                class="fas fa-undo-alt"></i></a>
+                                        <a v-if="imageChanged" type="button" @click="saveProfileImage()"
+                                            class="m-1 btn btn-success btn-sm"><i class="fas fa-check"></i></a>
+                                    </div>
                                 </div>
 
                                 <h3 class="profile-username text-center">{{ userStore.name }}</h3>
@@ -107,12 +122,14 @@
 
 <script setup>
 import emptyImage from "@/assets/images/emptyImage.png";
-import { reactive } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useUserStore } from '@/stores/user';
 import { CloseModal, LoadingModal, MessageModal } from "@/functions/swal";
 import { useRouter } from "vue-router";
 import {
     apiChangePassword,
+    apiDeleteProfileImage,
+    apiUpdateProfileImage,
 } from "@/functions/api/auth";
 
 const userStore = useUserStore();
@@ -166,4 +183,85 @@ async function savePassword() {
     }
 }
 
+const tempImage = ref(null); // temporary // null
+const selectedImageFile = ref(null);
+const profileImage = computed(() => userStore.profile_image);
+watch(
+    () => profileImage.value,
+    (nv) => (tempImage.value = nv ?? emptyImage),
+    { immediate: true }
+);
+
+const imageChanged = computed(
+    () => tempImage.value !== (profileImage.value ?? emptyImage)
+);
+const allowedExtensions = ["jpg", "jpeg", "png", "webp"];
+
+function onChangeImage(event) {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+        const extFile = files[0].name.split(".").pop()?.toLowerCase();
+        if (!allowedExtensions.includes(extFile)) {
+            return MessageModal({ icon: "error", title: "Error", text: "Only jpg/jpeg and png files are allowed!" });
+        }
+        const reader = new FileReader();
+        reader.onloadend = function () {
+            const img = new Image();
+            img.onerror = function () {
+                return MessageModal({ icon: "error", title: "Error", text: "Failed to load image. Please try a different file." });
+            };
+            img.onload = function () {
+                const canvas = document.createElement("canvas");
+                const ctx = canvas.getContext("2d");
+
+                // Set canvas size to 454x454
+                canvas.width = 454;
+                canvas.height = 454;
+
+                // Calculate crop dimensions (center crop)
+                const size = Math.min(img.width, img.height);
+                const x = (img.width - size) / 2;
+                const y = (img.height - size) / 2;
+
+                // Draw image cropped and resized to 454x454
+                ctx.drawImage(img, x, y, size, size, 0, 0, 454, 454);
+
+                canvas.toBlob((blob) => {
+                    if (!blob) {
+                        return MessageModal({ icon: "error", title: "Error", text: "Failed to process image. Please try again." });
+                    }
+
+                    selectedImageFile.value = new File([blob], "profile.png", { type: "image/png" });
+                    tempImage.value = canvas.toDataURL("image/png");
+                }, "image/png");
+            };
+            img.src = reader.result;
+        };
+        reader.readAsDataURL(files[0]);
+        event.target.value = null;
+    }
+}
+function onDeleteImage() {
+    selectedImageFile.value = null;
+    tempImage.value = emptyImage;
+}
+function onResetImage() {
+    selectedImageFile.value = null;
+    tempImage.value = userStore.profile_image ? userStore.profile_image : emptyImage;
+}
+async function saveProfileImage() {
+    try {
+        LoadingModal('Saving profile image...');
+        const isDeleting = tempImage.value === emptyImage;
+        const response = isDeleting
+            ? await apiDeleteProfileImage()
+            : await apiUpdateProfileImage(selectedImageFile.value);
+        userStore.profile_image = isDeleting ? null : response.data.profile_image;
+        userStore.profile_thumbnail = isDeleting ? null : response.data.profile_thumbnail;
+        selectedImageFile.value = null;
+        await MessageModal({ icon: "success", title: "Success", text: response.data.message });
+    } catch (error) {
+        return MessageModal({ icon: "error", title: "Error", text: error.response?.data?.message || error.message });
+    }
+}
 </script>
