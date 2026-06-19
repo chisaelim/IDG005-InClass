@@ -1,7 +1,7 @@
 <template>
     <div class="modal fade" id="STUDENT-MODAL" data-backdrop="static" data-keyboard="false" tabindex="-1">
         <div class="modal-dialog modal-xl">
-            <form>
+            <form @submit.prevent="saveStudent()">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Student Management</h5>
@@ -14,7 +14,8 @@
                             <div class="col-12">
                                 <div class="row">
                                     <div class="col-lg-3">
-
+                                        <CropperModal v-model="studentObj.photo" v-model:current="currentImage"
+                                            v-model:error="studentErrObj.photo" :width="454" :height="454" />
                                     </div>
                                     <div class="col-lg-9">
                                         <div class="row">
@@ -263,12 +264,29 @@
 
 <script setup>
 import $ from 'jquery';
+import Swal from 'sweetalert2';
 import { ref, reactive, onMounted, watch } from 'vue';
+import { apiCreateStudent, apiReadStudent, apiUpdateStudent, apiDeleteStudent } from '@/functions/api/student';
 import { CloseModal, LoadingModal, MessageModal } from "@/functions/swal";
 import { apiGetAllGenders, apiGetAllNationalities, apiGetAllEthnicities, apiGetAllReligions } from '@/functions/api/asset';
 import { apiGetProvinces, apiGetDistrictsByProvince, apiGetCommunesByDistrict, apiGetVillagesByCommune } from '@/functions/api/geo';
+import CropperModal from '@/components/includes/controls/CropperModal.vue';
 import { VueDatePicker } from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
+
+const props = defineProps({
+    onCreated: {
+        type: Function,
+    },
+    onUpdated: {
+        type: Function,
+    },
+    onDeleted: {
+        type: Function,
+    },
+});
+
+const currentImage = ref(null);
 
 const genders = ref([]);
 const nationalities = ref([]);
@@ -419,6 +437,110 @@ watch(() => studentObj.por_commune_id, async (nv, ov) => {
     }
 });
 
+async function buildFormData(data, includePhoto) {
+    const form = new FormData();
+    Object.entries(data).forEach(([key, value]) => {
+        if (key === 'photo') return;
+        if (value !== null && value !== undefined) form.append(key, value);
+    });
+    if (includePhoto) {
+        if (data.photo) {
+            const blob = await (await fetch(data.photo)).blob();
+            form.append('photo', blob, 'photo.jpg');
+        } else {
+            form.append('photo', '');
+        }
+    }
+    return form;
+}
+
+async function saveStudent() {
+    try {
+        LoadingModal();
+        let response = null;
+        if (studentObj.id === null) {
+            response = await apiCreateStudent(await buildFormData(studentObj, true));
+            props.onCreated(response.data.student);
+        } else {
+            const photoChanged = currentImage.value !== studentObj.photo;
+            response = await apiUpdateStudent(await buildFormData(studentObj, photoChanged));
+            props.onUpdated(response.data.student);
+        }
+        hideModal();
+        return MessageModal({ icon: "success", title: "Success", text: response.data.message });
+    } catch (error) {
+        const { response } = error;
+        if (!response) {
+            return MessageModal({ icon: "error", title: "Error", text: error.message });
+        }
+        const { status, data } = response;
+        if (status === 422) {
+            Object.keys(studentErrObj).forEach((key) => {
+                studentErrObj[key] = data.errors[key]
+                    ? data.errors[key][0]
+                    : "";
+            });
+            return CloseModal();
+        }
+        return MessageModal({ icon: "error", title: "Error", text: data.message });
+    }
+}
+async function viewStudent(id) {
+    try {
+        LoadingModal();
+        const response = await apiReadStudent(id);
+        const {
+            photo, gender, nationality, ethnicity, religion,
+            pob_village, pob_commune, pob_district, pob_province,
+            por_village, por_commune, por_district, por_province,
+            ...rest
+        } = response.data.student;
+        Object.assign(studentObj, {
+            ...rest,
+            gender_id: gender?.id ?? null,
+            nationality_id: nationality?.id ?? null,
+            ethnicity_id: ethnicity?.id ?? null,
+            religion_id: religion?.id ?? null,
+            pob_province_id: pob_province?.id ?? null,
+            pob_district_id: pob_district?.id ?? null,
+            pob_commune_id: pob_commune?.id ?? null,
+            pob_village_id: pob_village?.id ?? null,
+            por_province_id: por_province?.id ?? null,
+            por_district_id: por_district?.id ?? null,
+            por_commune_id: por_commune?.id ?? null,
+            por_village_id: por_village?.id ?? null,
+        });
+        studentObj.photo = photo;
+        currentImage.value = photo;
+        showModal();
+        return CloseModal();
+    } catch (error) {
+        return MessageModal({ icon: "error", title: "Error", text: error.response?.data?.message || error.message });
+    }
+}
+async function removeStudent(id) {
+    Swal.fire({
+        title: 'Want to delete the student ?',
+        html: '<pre>' + "Please make a confirmation." + '</pre>',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        confirmButtonText: 'Yes, Delete it.'
+    }).then(async (sw) => {
+        if (sw.isConfirmed) {
+            try {
+                LoadingModal();
+                const response = await apiDeleteStudent(id);
+                const { student, message } = response.data;
+                props.onDeleted(student);
+                return MessageModal({ icon: "success", title: "Success", text: message });
+            } catch (error) {
+                return MessageModal({ icon: "error", title: "Error", text: error.response?.data?.message || error.message });
+            }
+        }
+    });
+}
+
 async function generateGenders() {
     const response = await apiGetAllGenders();
     genders.value = response.data.genders;
@@ -458,5 +580,7 @@ const hideModal = () => $('#STUDENT-MODAL').modal('hide');
 defineExpose({
     showModal,
     hideModal,
+    removeStudent,
+    viewStudent
 });
 </script>
