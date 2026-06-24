@@ -11,8 +11,7 @@
             <!-- Sidebar user panel (optional) -->
             <div class="user-panel mt-3 pb-3 mb-3 d-flex">
                 <div class="image">
-                    <img :src="userStore.profile_thumbnail || emptyImage" class="img-circle elevation-2"
-                        alt="User Image">
+                    <img :src="emptyImage" class="img-circle elevation-2" alt="User Image">
                 </div>
                 <div class="info">
                     <router-link :to="{ name: 'Profile' }" class="d-block">{{ userStore.name }}</router-link>
@@ -30,6 +29,15 @@
                                 Dashboard
                             </p>
                         </RouterLink>
+                    </li>
+                    <li class="nav-header">
+                        Certificate Management
+                    </li>
+                    <li class="nav-item">
+                        <router-link :to="{ name: 'StudentTests' }" active-class="active" class="nav-link">
+                            <i class="nav-icon fas fa-user-graduate"></i>
+                            <p>Student Tests</p>
+                        </router-link>
                     </li>
 
                     <li class="nav-header">
