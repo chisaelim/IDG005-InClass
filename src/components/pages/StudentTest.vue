@@ -66,6 +66,56 @@
                             <div class="invalid-feedback">
                                 {{ studentTestErrObj.student_id }}
                             </div>
+                            <div class="card card-primary card-outline mt-1">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="d-flex justify-content-center align-items-center">
+                                                <div class="text-center">
+                                                    <img class="profile-user-img img-fluid img-circle m-3"
+                                                        :src="selectedStudent?.photo || emptyImage"
+                                                        alt="User profile picture">
+                                                    <h3 class="profile-username text-center">{{ selectedStudent?.name_kh
+                                                        ?? '-------' }}</h3>
+                                                    <h3 class="profile-username text-center">{{ selectedStudent?.name_en
+                                                        ?? '-------' }}</h3>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <ul class="list-group mb-3">
+
+                                                <li class="list-group-item">
+                                                    <b>ភេទ</b>
+                                                    <h6 class="float-right">{{ selectedStudent?.gender?.gd_kh_full }}
+                                                    </h6>
+                                                </li>
+                                                <li class="list-group-item">
+                                                    <b>ថ្ងៃខែឆ្នាំកំណើត</b>
+                                                    <h6 class="float-right">{{ selectedStudent?.dob }}</h6>
+                                                </li>
+                                                <li class="list-group-item">
+                                                    <b>លេខទូរស័ព្ទ</b>
+                                                    <h6 class="float-right">{{ selectedStudent?.phone }}</h6>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-center">
+                                                    <button type="button" @click="StudentModalRef.showModal"
+                                                        class="btn btn-success btn-inline-block mx-1">Add
+                                                        New <i class="fas fa-plus"></i></button>
+                                                    <button type="button" :disabled="!selectedStudent"
+                                                        @click="StudentModalRef.viewStudent(selectedStudent?.id)"
+                                                        class="btn btn-primary btn-inline-block mx-1">Update <i
+                                                            class="fas fa-edit"></i></button>
+                                                    <button type="button" :disabled="!selectedStudent"
+                                                        @click="StudentModalRef.removeStudent(selectedStudent?.id)"
+                                                        class="btn btn-danger btn-inline-block mx-1">Delete <i
+                                                            class="fas fa-trash"></i></button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group col-12">
                             <label>Test</label>
@@ -84,6 +134,8 @@
             </div>
         </div>
     </div>
+    <StudentModal ref="StudentModalRef" :onCreated="onStudentCreated" :onUpdated="onStudentUpdated"
+        :onDeleted="onStudentDeleted" />
 </template>
 <script setup>
 import emptyImage from '@/assets/images/emptyImage.png';
@@ -96,7 +148,9 @@ import { apiGetTests } from '@/functions/api/test';
 import { apiGetStudents } from '@/functions/api/student';
 import Swal from 'sweetalert2';
 import $ from 'jquery';
+import StudentModal from '@/components/includes/modals/StudentModal.vue';
 
+const StudentModalRef = ref(null);
 const issued_date = ref(moment().format('DD-MM-YYYY'));
 const student_tests = ref([]);
 const student_test_columns = [
@@ -405,4 +459,22 @@ const onStudentTestDeleted = (student_test) => {
         (obj) => obj.id !== student_test.id
     );
 };
+
+function onStudentCreated(student) {
+    students.value = [...students.value, student];
+    selectedStudent.value = student;
+}
+function onStudentUpdated(student) {
+    students.value = students.value.map((obj) =>
+        obj.id !== student.id ? obj : student
+    );
+    selectedStudent.value = student;
+}
+function onStudentDeleted(student) {
+    students.value = students.value.filter((obj) => obj.id !== student.id);
+    if (selectedStudent.value?.id === student.id) {
+        selectedStudent.value = null;
+    }
+}
+
 </script>
