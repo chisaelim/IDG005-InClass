@@ -39,14 +39,63 @@
             </div>
         </div>
     </div>
+    <div class="modal fade" id="STUDENT-TEST-MODAL" data-backdrop="static" data-keyboard="false" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form @submit.prevent="saveStudentTest()">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Student Test Management</h5>
+                        <button type="button" class="close" @click="hideModal()">
+                            <span>×</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group col-12">
+                            <label>Issued Date</label>
+                            <VueDatePicker v-model="studentTestObj.issued_date" :formats="{ input: 'dd-MM-yyyy' }"
+                                model-type="dd-MM-yyyy" :time-config="{ enableTimePicker: false }"
+                                :class="{ 'is-invalid': !!studentTestErrObj.issued_date }" :disabled="true" />
+                            <div class="invalid-feedback">
+                                {{ studentTestErrObj.issued_date }}
+                            </div>
+                        </div>
+                        <div class="form-group col-12">
+                            <label>Student</label>
+                            <VueMultiSelect v-model="selectedStudent" :options="students" track-by="id" label="name_kh"
+                                placeholder="---none---" :class="{ 'is-invalid': !!studentTestErrObj.student_id }" />
+                            <div class="invalid-feedback">
+                                {{ studentTestErrObj.student_id }}
+                            </div>
+                        </div>
+                        <div class="form-group col-12">
+                            <label>Test</label>
+                            <VueMultiSelect v-model="selectedTest" :options="tests" track-by="id" label="name_kh"
+                                placeholder="---none---" :class="{ 'is-invalid': !!studentTestErrObj.test_id }" />
+                            <div class="invalid-feedback">
+                                {{ studentTestErrObj.test_id }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer justify-content-between">
+                        <button type="button" class="btn btn-secondary" @click="hideModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </template>
 <script setup>
 import emptyImage from '@/assets/images/emptyImage.png';
 import moment from 'moment';
-import { h, ref, reactive, onMounted, watch } from 'vue';
+import { h, ref, reactive, onMounted, watch, computed } from 'vue';
 import { CloseModal, LoadingModal, MessageModal } from "@/functions/swal";
 import CustomTable from '@/components/includes/controls/CustomTable.vue';
-import { apiGetStudentTestsWithDetailsByIssuedDate } from '@/functions/api/student-test';
+import { apiGetStudentTestsWithDetailsByIssuedDate, apiCreateStudentTest, apiUpdateStudentTest, apiReadStudentTest, apiDeleteStudentTest, apiChangeStudentTestStatus } from '@/functions/api/student-test';
+import { apiGetTests } from '@/functions/api/test';
+import { apiGetStudents } from '@/functions/api/student';
+import Swal from 'sweetalert2';
+import $ from 'jquery';
 
 const issued_date = ref(moment().format('DD-MM-YYYY'));
 const student_tests = ref([]);
@@ -90,7 +139,9 @@ const student_test_columns = [
                 "a",
                 {
                     role: "button",
-                    onClick: () => { },
+                    onClick: () => row.original.status === "PENDING"
+                        ? null
+                        : changeStudentTestStatus(row.original.id, "PENDING"),
                     class: [
                         "badge " +
                         ((row.original.status === "PENDING" ? "badge-warning" : "") +
@@ -108,7 +159,7 @@ const student_test_columns = [
             h(
                 "button",
                 {
-                    onClick: () => { },
+                    onClick: () => showModal(),
                     class: "btn btn-sm btn-success ml-3",
                 },
                 "Add New"
@@ -119,7 +170,7 @@ const student_test_columns = [
             h(
                 "button",
                 {
-                    onClick: () => { },
+                    onClick: () => removeStudentTest(row.original.id),
                     class: "btn btn-sm btn-outline-danger mx-1",
                 },
                 h("i", { class: "fa fa-trash" })
@@ -128,7 +179,7 @@ const student_test_columns = [
             h(
                 "button",
                 {
-                    onClick: () => { },
+                    onClick: () => viewStudentTest(row.original.id),
                     class: "btn btn-sm btn-secondary mx-1",
                 },
                 h("i", { class: "fa fa-eye" })
@@ -137,7 +188,7 @@ const student_test_columns = [
                 ? h(
                     "button",
                     {
-                        onClick: () => { },
+                        onClick: () => changeStudentTestStatus(row.original.id, "PASSED"),
                         class: "btn btn-sm btn-success mx-1",
                     },
                     h("i", { class: "fa fa-check-circle" })
@@ -147,7 +198,7 @@ const student_test_columns = [
                 ? h(
                     "button",
                     {
-                        onClick: () => { },
+                        onClick: () => changeStudentTestStatus(row.original.id, "FAILED"),
                         class: "btn btn-sm btn-danger mx-1",
                     },
                     h("i", { class: "fa fa-times-circle" })
@@ -159,6 +210,19 @@ const student_test_columns = [
     },
 ];
 
+const tests = ref([]);
+const selectedTest = computed({
+    get: () => tests.value.find(({ id }) => id === studentTestObj.test_id),
+    set: (value) => (studentTestObj.test_id = value ? value?.id : null),
+});
+
+const students = ref([]);
+const selectedStudent = computed({
+    get: () =>
+        students.value.find(({ id }) => id === studentTestObj.student_id),
+    set: (value) => (studentTestObj.student_id = value ? value?.id : null),
+});
+
 const studentTestObj = reactive({
     id: null,
     test_id: null,
@@ -166,8 +230,11 @@ const studentTestObj = reactive({
     issued_date: null,
 });
 const studentTestErrObj = reactive({
+    test_id: null,
+    student_id: null,
     issued_date: null,
 });
+
 
 const defaultStudentTestObj = JSON.parse(JSON.stringify(studentTestObj));
 const defaultStudentTestErrObj = JSON.parse(JSON.stringify(studentTestErrObj));
@@ -178,9 +245,19 @@ function resetAllState() {
 }
 
 onMounted(async () => {
+    $('#STUDENT-TEST-MODAL').on('hide.bs.modal', function () {
+        resetAllState();
+    });
+    $('#STUDENT-TEST-MODAL').on('show.bs.modal', function () {
+        studentTestObj.issued_date = issued_date.value;
+    });
     try {
         LoadingModal();
-        await generateStudentTestsByIssuedDate();
+        await Promise.all([
+            generateTests(),
+            generateStudents(),
+            generateStudentTestsByIssuedDate(),
+        ]);
         return CloseModal();
     } catch (error) {
         return MessageModal({ icon: "error", title: "Error", text: error.response?.data?.message || error.message });
@@ -195,8 +272,137 @@ watch(issued_date, async () => {
         return MessageModal({ icon: "error", title: "Error", text: error.response?.data?.message || error.message });
     }
 });
+
 async function generateStudentTestsByIssuedDate() {
     const response = await apiGetStudentTestsWithDetailsByIssuedDate(issued_date.value);
     student_tests.value = response.data.student_tests;
 }
+async function generateTests() {
+    const response = await apiGetTests();
+    tests.value = response.data.tests;
+}
+async function generateStudents() {
+    const response = await apiGetStudents();
+    students.value = response.data.students;
+}
+
+async function saveStudentTest() {
+    try {
+        LoadingModal();
+        let response = null;
+        if (studentTestObj.id === null) {
+            response = await apiCreateStudentTest(studentTestObj);
+            onStudentTestCreated(response.data.student_test);
+        } else {
+            response = await apiUpdateStudentTest(studentTestObj);
+            onStudentTestUpdated(response.data.student_test);
+        }
+        hideModal();
+        return MessageModal({ icon: 'success', title: 'Success', text: response.data.message });
+    } catch (error) {
+        const { response } = error;
+        if (!response) {
+            return MessageModal({ icon: "error", title: "Error", text: error.message });
+        }
+        const { status, data } = response;
+        if (status === 422) {
+            Object.keys(studentTestErrObj).forEach((key) => {
+                studentTestErrObj[key] = data.errors[key] ? data.errors[key][0] : null;
+            });
+            return CloseModal();
+        }
+        return MessageModal({ icon: "error", title: "Error", text: data.message });
+    }
+}
+async function viewStudentTest(id) {
+    try {
+        LoadingModal();
+        const response = await apiReadStudentTest(id);
+        const { student, test, ...rest } = response.data.student_test;
+        Object.assign(studentTestObj, {
+            ...rest,
+            student_id: student.id,
+            test_id: test.id,
+        });
+        showModal();
+        return CloseModal();
+    } catch (error) {
+        return MessageModal({ icon: "error", title: "Error", text: error.response?.data?.message || error.message });
+    }
+}
+async function removeStudentTest(id) {
+    Swal.fire({
+        title: "Want to delete the student test?",
+        html: "<pre>" + "Please make a confirmation." + "</pre>",
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonColor: "#dc3545",
+        confirmButtonText: "Yes, Delete it.",
+    }).then(async (sw) => {
+        if (sw.isConfirmed) {
+            try {
+                LoadingModal();
+                const response = await apiDeleteStudentTest(id);
+                const { student_test, message } = response.data;
+                onStudentTestDeleted(student_test);
+                return MessageModal({ icon: 'success', title: 'Success', text: message });
+            } catch (error) {
+                return MessageModal({ icon: "error", title: "Error", text: error.response?.data?.message || error.message });
+            }
+        }
+    });
+}
+async function changeStudentTestStatus(id, status) {
+    Swal.fire({
+        title: "Want to change the student test status?",
+        html: "<pre>" + "Please make a confirmation." + "</pre>",
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonColor: "#007bff",
+        confirmButtonText: "Yes, Change it.",
+    }).then(async (sw) => {
+        if (sw.isConfirmed) {
+            try {
+                LoadingModal();
+                const response = await apiChangeStudentTestStatus({ id, status });
+                const { student_test, message } = response.data;
+                onStudentTestUpdated(student_test);
+                return MessageModal({ icon: 'success', title: 'Success', text: message });
+            } catch (error) {
+                return MessageModal({ icon: "error", title: "Error", text: error.response?.data?.message || error.message });
+            }
+        }
+    })
+}
+
+
+
+
+function hideModal() {
+    $('#STUDENT-TEST-MODAL').modal('hide');
+}
+function showModal() {
+    $('#STUDENT-TEST-MODAL').modal('show');
+}
+const onStudentTestCreated = (student_test) => {
+    if (student_test.issued_date !== issued_date.value) {
+        onStudentTestDeleted(student_test);
+        return;
+    };
+    student_tests.value = [...student_tests.value, student_test];
+};
+const onStudentTestUpdated = (student_test) => {
+    if (student_test.issued_date !== issued_date.value) {
+        onStudentTestDeleted(student_test);
+        return;
+    };
+    student_tests.value = student_tests.value.map((obj) =>
+        obj.id !== student_test.id ? obj : student_test
+    );
+};
+const onStudentTestDeleted = (student_test) => {
+    student_tests.value = student_tests.value.filter(
+        (obj) => obj.id !== student_test.id
+    );
+};
 </script>
