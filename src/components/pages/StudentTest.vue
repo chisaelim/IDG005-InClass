@@ -134,8 +134,43 @@
             </div>
         </div>
     </div>
+    <div class="modal fade" id="CERTIFICATE-MODAL" data-backdrop="static" data-keyboard="false" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <form @submit.prevent="generateCertificates()">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Certificates</h5>
+                        <button type="button" class="close" @click="closeCertificateModal()">
+                            <span>×</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <CustomTable :title="'List of Students Who Completed the Course'" :data="passed_student_tests"
+                            :columns="passed_columns" :maxSize="true" />
+                    </div>
+                    <div class="modal-footer justify-content-between">
+                        <button type="button" class="btn btn-secondary" @click="closeCertificateModal()">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            Generate Certificates
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
     <StudentModal ref="StudentModalRef" :onCreated="onStudentCreated" :onUpdated="onStudentUpdated"
         :onDeleted="onStudentDeleted" />
+    <div class="modal fade" id="PDF-MODAL" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-body">
+                    <iframe style="width: 100%; height: calc(100vh - 100px); min-height: 500px;"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
 </template>
 <script setup>
 import emptyImage from '@/assets/images/emptyImage.png';
@@ -143,7 +178,7 @@ import moment from 'moment';
 import { h, ref, reactive, onMounted, watch, computed } from 'vue';
 import { CloseModal, LoadingModal, MessageModal } from "@/functions/swal";
 import CustomTable from '@/components/includes/controls/CustomTable.vue';
-import { apiGetStudentTestsWithDetailsByIssuedDate, apiCreateStudentTest, apiUpdateStudentTest, apiReadStudentTest, apiDeleteStudentTest, apiChangeStudentTestStatus } from '@/functions/api/student-test';
+import { apiGetPassedStudentTestsForCertificates, apiGetStudentTestsWithDetailsByIssuedDate, apiCreateStudentTest, apiUpdateStudentTest, apiReadStudentTest, apiDeleteStudentTest, apiChangeStudentTestStatus } from '@/functions/api/student-test';
 import { apiGetTests } from '@/functions/api/test';
 import { apiGetStudents } from '@/functions/api/student';
 import Swal from 'sweetalert2';
@@ -218,6 +253,14 @@ const student_test_columns = [
                 },
                 "Add New"
             ),
+            h(
+                "button",
+                {
+                    onClick: () => openCertificateModal(),
+                    class: "btn btn-sm btn-primary ml-3",
+                },
+                "Certificates"
+            )
         ],
         cell: ({ row }) => [
             // delete btn
@@ -477,4 +520,681 @@ function onStudentDeleted(student) {
     }
 }
 
+
+////// Certificate Section
+const passed_student_tests = computed(
+    () => student_tests.value?.filter(({ status }) => status === "PASSED") ?? []
+);
+const passed_ids = ref([]);
+const passed_columns = [
+    {
+        accessorKey: "id",
+        header: () =>
+            h(
+                "div",
+                {
+                    class: "icheck-primary d-inline",
+                },
+                [
+                    h("input", {
+                        type: "checkbox",
+                        id: "checkbox-all",
+                        checked: passed_student_tests.value.every(({ id }) =>
+                            passed_ids.value.includes(id)
+                        ),
+                        onChange: ({ target: { checked } }) => {
+                            if (checked) {
+                                passed_ids.value = passed_student_tests.value.map(
+                                    ({ id }) => id
+                                );
+                            } else {
+                                passed_ids.value = [];
+                            }
+                        },
+                    }),
+                    h(
+                        "label",
+                        {
+                            for: "checkbox-all",
+                        },
+                        "All"
+                    ),
+                ]
+            ),
+        cell: (cell) =>
+            h(
+                "div",
+                {
+                    class: "icheck-primary d-inline",
+                },
+                [
+                    h("input", {
+                        type: "checkbox",
+                        id: "checkbox-" + cell.getValue(),
+                        checked: passed_ids.value.includes(cell.getValue()),
+                        onChange: ({ target: { checked } }) => {
+                            if (checked) {
+                                passed_ids.value.push(cell.getValue());
+                            } else {
+                                passed_ids.value = passed_ids.value.filter(
+                                    (id) => id !== cell.getValue()
+                                );
+                            }
+                        },
+                    }),
+                    h("label", {
+                        for: "checkbox-" + cell.getValue(),
+                    }),
+                ]
+            ),
+        enableSorting: false,
+        enableGlobalFilter: false,
+    },
+    {
+        accessorKey: "student.name_kh",
+        header: "Name (Khmer)",
+    },
+    {
+        accessorKey: "student.name_en",
+        header: "Name (Latin)",
+    },
+
+    {
+        accessorKey: "student.gender.gd_kh_full",
+        header: "Gender",
+    },
+    {
+        accessorKey: "test.name_kh",
+        header: "Test Name (Khmer)",
+    },
+    {
+        accessorKey: "test.name_en",
+        header: "Test Name (English)",
+    },
+];
+function openCertificateModal() {
+    $("#CERTIFICATE-MODAL").modal("show");
+}
+function closeCertificateModal() {
+    $("#CERTIFICATE-MODAL").modal("hide");
+}
+
+async function generateCertificates() {
+    try {
+        LoadingModal();
+        const response = await apiGetPassedStudentTestsForCertificates(
+            passed_ids.value
+        );
+        await generateStudentTestCertificatesPDF(response.data.student_tests);
+        return CloseModal();
+    } catch (error) {
+        return MessageModal({ icon: "error", title: "Error", text: error.response?.data?.message || error.message });
+    }
+}
+
+async function generateStudentTestCertificatesPDF(passed_test_details) {
+    let dots = [
+        "................................",
+        "............................................................................",
+        ".......................................................",
+        "...........................................",
+        ".........................................................................................................",
+        ".......................................................................................................",
+        ".............................................",
+        "................................................................................................................",
+        "........................................................................................................",
+        "......................................................................................................",
+        ".........................",
+        ".....................",
+        ".....................",
+        "...................................................................",
+        "........................................................................",
+        "...............................",
+        ".................................................................................................................",
+        "........................................................................................................................",
+        ".......................................................................",
+        "...................................................................................................................",
+        "............................",
+        ".................................",
+        ".................................",
+        ".....................",
+        ".................................",
+        "................................."
+    ];
+    const enRowObject = (label, value, underline) => ({
+        columns: [
+            {
+                width: 'auto',
+                text: label,
+            },
+            {
+                width: '*',
+                stack: [
+                    {
+                        text: underline,
+                        margin: [0, 1, 0, 0],
+                    },
+                    {
+                        text: value,
+                        bold: true,
+                        margin: [0, -11.5, 0, 0],
+                    }
+                ],
+                alignment: 'center'
+            }
+        ],
+        // margin: [0, 0, 0, 7],
+        margin: [0, -1.50, 0, 7]
+    });
+    const khRowObject = (label, value, underline) => ({
+        columns: [
+            {
+                width: 'auto',
+                text: label,
+            },
+            {
+                width: '*',
+                stack: [
+                    {
+                        text: underline,
+                        margin: [0, 1, 0, 0],
+                    },
+                    {
+                        text: value,
+                        font: 'KhmerOSMoul',
+                        fonts: 8,
+                        margin: [0, -18.5, 0, 0],
+                    }
+                ],
+                alignment: 'center'
+            }
+        ],
+        margin: [0, -5, 0, 3.75]
+    });
+    const khmerMonths = ['មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា', 'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'];
+    const enMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const formatDate = (dateStr) => {
+        const [day, month, year] = dateStr.split('-');
+        const idx = parseInt(month) - 1;
+        return { en: `${day} ${enMonths[idx]} ${year}`, kh: `${day} ${khmerMonths[idx]} ${year}` };
+    };
+    let page = 0;
+    const data = [];
+    for (const { id, issued_date, expired_date, student: s, test } of passed_test_details) {
+        const issuedDate = formatDate(issued_date);
+        const expiredDate = formatDate(expired_date);
+        const dobDate = formatDate(s.dob);
+        const issued_date_en = issuedDate.en;
+        const issued_date_kh = issuedDate.kh;
+        const expired_date_en = expiredDate.en;
+        const expired_date_kh = expiredDate.kh;
+        const student = {
+            name_en: s.name_en,
+            name_kh: s.name_kh,
+            gd_en: s.gender.gd_en,
+            gd_kh: s.gender.gd_kh,
+            dob_en: dobDate.en,
+            dob_kh: dobDate.kh,
+            pob_province: s.pob_province,
+        };
+        page++;
+        let index = 0;
+        data.push({
+            columns: [
+                {
+                    width: '50%',
+                    stack: [
+                        enRowObject(
+                            'Seeing minutes of the Assessment Committee meeting on',
+                            issued_date_en,
+                            dots[index++]
+                        ),
+                        enRowObject(
+                            'Of competency assessment at',
+                            'Institute of Cambodia',
+                            dots[index++]
+                        ),
+                        {
+                            columns: [
+                                {
+                                    width: '60%',
+                                    stack: [
+                                        enRowObject(
+                                            'Certifies that',
+                                            student.name_en,
+                                            dots[index++]
+                                        ),
+                                    ]
+                                },
+                                {
+                                    width: '*',
+                                    stack: [
+                                        enRowObject(
+                                            'Sex',
+                                            student.gd_en,
+                                            dots[index++]
+                                        ),
+                                    ]
+                                }
+                            ],
+                        },
+                        enRowObject(
+                            'Date of Birth',
+                            student.dob_en,
+                            dots[index++]
+                        ),
+                        enRowObject(
+                            'Place of Birth',
+                            student.pob_province.name_latin,
+                            dots[index++]
+                        ),
+                        enRowObject(
+                            'Has qualified to deserve the National Qualification',
+                            'Vocational Certificate',
+                            dots[index++]
+                        ),
+                        enRowObject(
+                            'Skills of',
+                            test.name_en,
+                            dots[index++]
+                        ),
+                        enRowObject(
+                            'This certificate is presented to the bearer for which all the rights and privileges.',
+                            '',
+                            ''
+                        ),
+                        enRowObject(
+                            'Date of Issue',
+                            issued_date_en,
+                            dots[index++]
+                        ),
+                        enRowObject(
+                            'Date of Expiry',
+                            expired_date_en,
+                            dots[index++]
+                        ),
+                    ],
+                    style: 'body_en',
+                    // margin: [10, 0],
+                    margin: [5, -2]
+                },
+                {
+                    width: '50%',
+                    stack: [
+                        {
+                            columns: [
+                                {
+                                    width: '60%',
+                                    stack: [
+                                        khRowObject(
+                                            'បានឃើញកំណត់ហេតុប្រជុំ ចុះថ្ងៃទី',
+                                            issued_date_kh.split(' ')[0],
+                                            dots[index++]
+                                        ),
+                                    ]
+                                },
+                                {
+                                    width: '*',
+                                    stack: [
+                                        khRowObject(
+                                            'ខែ',
+                                            issued_date_kh.split(' ')[1],
+                                            dots[index++]
+                                        ),
+                                    ]
+                                },
+                                {
+                                    width: '*',
+                                    stack: [
+                                        khRowObject(
+                                            'ឆ្នាំ',
+                                            issued_date_kh.split(' ')[2],
+                                            dots[index++]
+                                        ),
+                                    ]
+                                }
+                            ],
+                        },
+                        khRowObject(
+                            'របស់គណៈកម្មការវាយតម្លៃសមត្ថភាពនៅ',
+                            'វិទ្យាស្ថានជាតិ',
+                            dots[index++]
+                        ),
+                        {
+                            columns: [
+                                {
+                                    width: '70%',
+                                    stack: [
+                                        khRowObject(
+                                            'បញ្ជាក់ថា៖',
+                                            student.name_kh,
+                                            dots[index++]
+                                        ),
+                                    ]
+                                },
+                                {
+                                    width: '*',
+                                    stack: [
+                                        khRowObject(
+                                            'ភេទ',
+                                            student.gd_kh,
+                                            dots[index++]
+                                        ),
+                                    ]
+                                }
+                            ],
+                        },
+                        khRowObject(
+                            'កើតថ្ងៃទី',
+                            student.dob_kh,
+                            dots[index++]
+                        ),
+                        khRowObject(
+                            'នៅ',
+                            student.pob_province.name_kh,
+                            dots[index++]
+                        ),
+                        khRowObject(
+                            'មានសមត្ថភាពទទួលបានគុណវុឌ្ឍិជាតិ',
+                            'វិញ្ញាបនបត្រវិជ្ជាជីវៈ',
+                            dots[index++]
+                        ),
+                        khRowObject(
+                            'ជំនាញ',
+                            test.name_kh,
+                            dots[index++]
+                        ),
+                        khRowObject(
+                            'គុណវុឌ្ឍិនេះផ្តល់ជូនសាមីជនដើម្បីប្រើប្រាស់តាមតម្រូវការដែលអាចប្រើបាន។',
+                            '',
+                            ''
+                        ),
+                        {
+                            columns: [
+                                {
+                                    width: '40%',
+                                    stack: [
+                                        khRowObject(
+                                            'ផ្តល់ជូននៅថ្ងៃទី',
+                                            issued_date_kh.split(' ')[0],
+                                            dots[index++]
+                                        ),
+                                    ]
+                                },
+                                {
+                                    width: '*',
+                                    stack: [
+                                        khRowObject(
+                                            'ខែ',
+                                            issued_date_kh.split(' ')[1],
+                                            dots[index++]
+                                        ),
+                                    ]
+                                },
+                                {
+                                    width: '*',
+                                    stack: [
+                                        khRowObject(
+                                            'ឆ្នាំ',
+                                            issued_date_kh.split(' ')[2],
+                                            dots[index++]
+                                        ),
+                                    ]
+                                }
+                            ],
+                        },
+                        {
+                            columns: [
+                                {
+                                    width: '40%',
+                                    stack: [
+                                        khRowObject(
+                                            'សុពលភាពដល់ថ្ងៃទី',
+                                            expired_date_kh.split(' ')[0],
+                                            dots[index++]
+                                        ),
+                                    ]
+                                },
+                                {
+                                    width: '*',
+                                    stack: [
+                                        khRowObject(
+                                            'ខែ',
+                                            expired_date_kh.split(' ')[1],
+                                            dots[index++]
+                                        ),
+                                    ]
+                                },
+                                {
+                                    width: '*',
+                                    stack: [
+                                        khRowObject(
+                                            'ឆ្នាំ',
+                                            expired_date_kh.split(' ')[2],
+                                            dots[index++]
+                                        ),
+                                    ]
+                                }
+                            ],
+                        },
+                    ],
+                    style: 'body_kh',
+                    // margin: [10, 0],
+                    margin: [5, -2],
+                },
+            ],
+            pageBreak: page < passed_test_details.length ? 'after' : ''
+        })
+    }
+    const docDefinition = {
+        info: {
+            title: 'Certificate of Recognition',
+            author: 'Chisae LIM',
+            subject: 'Certificate of Recognition',
+            keywords: 'Certificate of Recognition',
+        },
+        header: [
+            {
+                columns: [
+                    {
+                        width: '*',
+                        text: ''
+                    },
+                    {
+                        width: '45%',
+                        stack: [
+                            {
+                                text: 'ព្រះរាជាណាចក្រកម្ពុជា',
+                                style: 'header_kh',
+                            },
+                            {
+                                text: 'KINGDOM OF CAMBODIA',
+                                style: 'header_en',
+                            },
+                            {
+                                text: 'ជាតិ សាសនា ព្រះមហាក្សត្រ',
+                                style: 'header_kh',
+                                font: 'KhmerOSBattambong',
+                                bold: true
+                            },
+                            {
+                                text: 'NATION RELIGION KING',
+                                style: 'header_en',
+                                bold: false,
+                            },
+                            {
+                                image: 'element1.png',
+                                width: 150,
+                                margin: [0, -25, 0, -25]
+                            },
+
+                        ],
+                        alignment: 'center',
+                        margin: [0, 65, 0, 0]
+                    }
+                ],
+            },
+            {
+                columns: [
+                    {
+                        width: '50%',
+                        stack: [
+                            {
+                                text: 'ក្រសួងការងារ និងបណ្តុះបណ្តាលវិជ្ជាជីវៈ',
+                                style: 'header_kh',
+                            },
+                            {
+                                text: 'MINISTRY OF LABOUR AND VOCATIONAL TRAINING',
+                                style: 'header_en',
+                            },
+                            {
+                                image: 'element1.png',
+                                width: 150,
+                                margin: [0, -25, 0, -25]
+                            },
+                        ],
+                        alignment: 'center',
+                        margin: [0, -45, 0, 0]
+                    }
+                ],
+            },
+            {
+                stack: [
+                    {
+                        text: 'វិញ្ញាបនបត្រទទួលស្គាល់ការសិក្សា',
+                        style: 'header_kh',
+                        fontSize: 13,
+                    },
+                    {
+                        text: 'CERTIFICATE OF RECOGNITION OF PRIOR LEARNING',
+                        style: 'header_en',
+                    },
+                    {
+                        text: 'វិទ្យាស្ថានជាតិ',
+                        style: 'header_kh',
+                    },
+                    {
+                        text: 'INSTITUTE OF CAMBODIA',
+                        style: 'header_en',
+                    },
+                ],
+                alignment: 'center',
+                margin: [0, -5, 0, 0]
+            }
+        ],
+        footer: [
+            {
+                columns: [
+                    {
+                        width: '*',
+                        text: ''
+                    },
+                    {
+                        width: '56%',
+                        stack: [
+                            {
+                                text: 'ថ្ងៃ..............................ខែ....................ឆ្នាំ..............................ព.ស. ២៥........',
+                                style: 'body_kh',
+                            },
+                            {
+                                text: 'រាជធានីភ្នំពេញ, ថ្ងៃទី...............ខែ...............ឆ្នាំ២០........',
+                                style: 'body_kh',
+                            },
+                            {
+                                text: 'នាយកវិទ្យាស្ថាន',
+                                style: 'header_kh',
+                                margin: [0, 0, 0, 0]
+                            },
+                            {
+                                text: 'PRESIDENT',
+                                style: 'header_en',
+                                bold: true,
+                            },
+
+                        ],
+                        margin: [0, -10, 0, 0],
+                        alignment: 'center',
+                    }
+                ],
+            },
+            {
+                text: 'លេខ:...........................',
+                style: 'body_kh',
+                alignment: 'center',
+                margin: [0, -40, 0, 0]
+            },
+            {
+                canvas:
+                    [{
+                        type: 'rect',
+                        x: 842 / 2 - 30,
+                        y: 10,
+                        w: 60,
+                        h: 90,
+                        lineWidth: 1,
+                        lineColor: 'black',
+                    }],
+            },
+            {
+                text: '4 x 6',
+                absolutePosition: {
+                    x: 0, // center horizontally (adjust as needed)
+                    y: 90 - 10 // center vertically in the rectangle
+                },
+                alignment: 'center',
+                fontSize: 12 // or any size you want
+            },
+        ],
+        styles: {
+            header_kh: {
+                font: 'KhmerOSMoul',
+                fontSize: 11,
+            },
+            header_en: {
+                font: 'Arial',
+                fontSize: 10,
+                bold: true
+            },
+            body_en: {
+                font: 'Arial',
+                fontSize: 9.5,
+            },
+            body_kh: {
+                font: 'KhmerOSBattambong',
+                fontSize: 9.5,
+            }
+        },
+        pageSize: 'A4',
+        pageOrientation: 'landscape',
+        pageMargins: [80, 215, 80, 210],
+        content: data,
+        // pageBreakBefore: function (currentNode, followingNodesOnPage, nodesOnNextPage, previousNodesOnPage) {
+        //     overWriteColumnStack(currentNode);
+        //     return currentNode.headlineLevel === 1 && followingNodesOnPage.length === 0;
+        // }
+    };
+    // const overWriteColumnStack = (node) => {
+    //     if ('columns' in node) {
+    //         if (node.columns.length === 2 && 'stack' in node.columns[1] && node.columns[1].stack[0].text === '.') {
+    //             console.log(node)
+    //             const calWidth = node.columns[1]._calcWidth;
+    //             const stack1 = node.columns[1].stack[0]._minWidth;
+    //             let temp = '';
+    //             for (let i = 1; i < calWidth / stack1; i++) {
+    //                 temp += '.';
+    //             }
+    //             node.columns[1].stack[0].text = temp;
+    //             console.log(temp)
+    //             dots.push(temp);
+    //         }
+    //     }
+    //     console.log(dots)
+    // }
+
+    const pdfDocGenerator = pdfMake.createPdf(docDefinition);
+    const dataUrl = await pdfDocGenerator.getDataUrl();
+    const iframe = document.querySelector('iframe');
+    iframe.src = dataUrl;
+    $('#PDF-MODAL').modal('show');
+}
 </script>
