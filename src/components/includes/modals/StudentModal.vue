@@ -123,52 +123,39 @@
                                 <div class="row">
                                     <div class="form-group col-lg-3">
                                         <label>Province / Capital</label>
-                                        <select v-model="studentObj.pob_province_id" class="form-control"
-                                            :class="{ 'is-invalid': !!studentErrObj.pob_province_id }">
-                                            <option :value="null">---none---</option>
-                                            <option v-for="{ id, name_kh } in provinces" :key="id" :value="id">
-                                                {{ name_kh }}
-                                            </option>
-                                        </select>
+                                        <VueMultiSelect v-model="selectedPobProvince" :options="provinces" track-by="id"
+                                            label="name_kh" placeholder="---none---"
+                                            :class="{ 'is-invalid': !!studentErrObj.pob_province_id }" />
                                         <div class="invalid-feedback">
                                             {{ studentErrObj.pob_province_id }}
                                         </div>
                                     </div>
                                     <div class="form-group col-lg-3">
                                         <label>District / Municipality / City</label>
-                                        <select v-model="studentObj.pob_district_id" class="form-control"
-                                            :class="{ 'is-invalid': !!studentErrObj.pob_district_id }">
-                                            <option :value="null">---none---</option>
-                                            <option v-for="{ id, name_kh } in pobDistricts" :key="id" :value="id">
-                                                {{ name_kh }}
-                                            </option>
-                                        </select>
+                                        <VueMultiSelect v-model="selectedPobDistrict" :options="pobDistricts"
+                                            track-by="id" label="name_kh" placeholder="---none---"
+                                            :class="{ 'is-invalid': !!studentErrObj.pob_district_id }"
+                                            :disabled="!studentObj.pob_province_id" />
                                         <div class="invalid-feedback">
                                             {{ studentErrObj.pob_district_id }}
                                         </div>
                                     </div>
                                     <div class="form-group col-lg-3">
                                         <label>Commune / Sangkat</label>
-                                        <select v-model="studentObj.pob_commune_id" class="form-control"
-                                            :class="{ 'is-invalid': !!studentErrObj.pob_commune_id }">
-                                            <option :value="null">---none---</option>
-                                            <option v-for="{ id, name_kh } in pobCommunes" :key="id" :value="id">
-                                                {{ name_kh }}
-                                            </option>
-                                        </select>
+                                        <VueMultiSelect v-model="selectedPobCommune" :options="pobCommunes"
+                                            track-by="id" label="name_kh" placeholder="---none---"
+                                            :class="{ 'is-invalid': !!studentErrObj.pob_commune_id }"
+                                            :disabled="!studentObj.pob_district_id" />
                                         <div class="invalid-feedback">
                                             {{ studentErrObj.pob_commune_id }}
                                         </div>
                                     </div>
                                     <div class="form-group col-lg-3">
                                         <label>Village</label>
-                                        <select v-model="studentObj.pob_village_id" class="form-control"
-                                            :class="{ 'is-invalid': !!studentErrObj.pob_village_id }">
-                                            <option :value="null">---none---</option>
-                                            <option v-for="{ id, name_kh } in pobVillages" :key="id" :value="id">
-                                                {{ name_kh }}
-                                            </option>
-                                        </select>
+                                        <VueMultiSelect v-model="selectedPobVillage" :options="pobVillages"
+                                            track-by="id" label="name_kh" placeholder="---none---"
+                                            :class="{ 'is-invalid': !!studentErrObj.pob_village_id }"
+                                            :disabled="!studentObj.pob_commune_id" />
                                         <div class="invalid-feedback">
                                             {{ studentErrObj.pob_village_id }}
                                         </div>
@@ -180,52 +167,37 @@
                                 <div class="row">
                                     <div class="form-group col-lg-3">
                                         <label>Province / Capital</label>
-                                        <select v-model="studentObj.por_province_id" class="form-control"
-                                            :class="{ 'is-invalid': !!studentErrObj.por_province_id }">
-                                            <option :value="null">---none---</option>
-                                            <option v-for="{ id, name_kh } in provinces" :key="id" :value="id">
-                                                {{ name_kh }}
-                                            </option>
-                                        </select>
+                                        <VueMultiSelect v-model="selectedPorProvince" :options="provinces" track-by="id"
+                                            label="name_kh" placeholder="---none---"
+                                            :class="{ 'is-invalid': !!studentErrObj.por_province_id }" />
                                         <div class="invalid-feedback">
                                             {{ studentErrObj.por_province_id }}
                                         </div>
                                     </div>
                                     <div class="form-group col-lg-3">
                                         <label>District / Municipality / City</label>
-                                        <select v-model="studentObj.por_district_id" class="form-control"
-                                            :class="{ 'is-invalid': !!studentErrObj.por_district_id }">
-                                            <option :value="null">---none---</option>
-                                            <option v-for="{ id, name_kh } in porDistricts" :key="id" :value="id">
-                                                {{ name_kh }}
-                                            </option>
-                                        </select>
+                                        <VueMultiSelect v-model="selectedPorDistrict" :options="porDistricts"
+                                            track-by="id" label="name_kh" placeholder="---none---"
+                                            :class="{ 'is-invalid': !!studentErrObj.por_district_id }"
+                                            :disabled="!studentObj.por_province_id" />
                                         <div class="invalid-feedback">
                                             {{ studentErrObj.por_district_id }}
                                         </div>
                                     </div>
                                     <div class="form-group col-lg-3">
                                         <label>Commune / Sangkat</label>
-                                        <select v-model="studentObj.por_commune_id" class="form-control"
-                                            :class="{ 'is-invalid': !!studentErrObj.por_commune_id }">
-                                            <option :value="null">---none---</option>
-                                            <option v-for="{ id, name_kh } in porCommunes" :key="id" :value="id">
-                                                {{ name_kh }}
-                                            </option>
-                                        </select>
+                                        <VueMultiSelect v-model="selectedPorCommune" :options="porCommunes"
+                                            track-by="id" label="name_kh" placeholder="---none---"
+                                            :class="{ 'is-invalid': !!studentErrObj.por_commune_id }" />
                                         <div class="invalid-feedback">
                                             {{ studentErrObj.por_commune_id }}
                                         </div>
                                     </div>
                                     <div class="form-group col-lg-3">
                                         <label>Village</label>
-                                        <select v-model="studentObj.por_village_id" class="form-control"
-                                            :class="{ 'is-invalid': !!studentErrObj.por_village_id }">
-                                            <option :value="null">---none---</option>
-                                            <option v-for="{ id, name_kh } in porVillages" :key="id" :value="id">
-                                                {{ name_kh }}
-                                            </option>
-                                        </select>
+                                        <VueMultiSelect v-model="selectedPorVillage" :options="porVillages"
+                                            track-by="id" label="name_kh" placeholder="---none---"
+                                            :class="{ 'is-invalid': !!studentErrObj.por_village_id }" />
                                         <div class="invalid-feedback">
                                             {{ studentErrObj.por_village_id }}
                                         </div>
@@ -265,14 +237,12 @@
 <script setup>
 import $ from 'jquery';
 import Swal from 'sweetalert2';
-import { ref, reactive, onMounted, watch } from 'vue';
+import { ref, reactive, onMounted, watch, computed } from 'vue';
 import { apiCreateStudent, apiReadStudent, apiUpdateStudent, apiDeleteStudent } from '@/functions/api/student';
 import { CloseModal, LoadingModal, MessageModal } from "@/functions/swal";
 import { apiGetAllGenders, apiGetAllNationalities, apiGetAllEthnicities, apiGetAllReligions } from '@/functions/api/asset';
 import { apiGetProvinces, apiGetDistrictsByProvince, apiGetCommunesByDistrict, apiGetVillagesByCommune } from '@/functions/api/geo';
 import CropperModal from '@/components/includes/controls/CropperModal.vue';
-import { VueDatePicker } from '@vuepic/vue-datepicker';
-import '@vuepic/vue-datepicker/dist/main.css';
 
 const props = defineProps({
     onCreated: {
@@ -302,6 +272,72 @@ const pobVillages = ref([]);
 const porDistricts = ref([]);
 const porCommunes = ref([]);
 const porVillages = ref([]);
+
+const selectedPobProvince = computed({
+    get() {
+        return provinces.value.find(p => p.id === studentObj.pob_province_id) || null;
+    },
+    set(value) {
+        studentObj.pob_province_id = value ? value.id : null;
+    }
+});
+const selectedPobDistrict = computed({
+    get() {
+        return pobDistricts.value.find(d => d.id === studentObj.pob_district_id) || null;
+    },
+    set(value) {
+        studentObj.pob_district_id = value ? value.id : null;
+    }
+});
+const selectedPobCommune = computed({
+    get() {
+        return pobCommunes.value.find(c => c.id === studentObj.pob_commune_id) || null;
+    },
+    set(value) {
+        studentObj.pob_commune_id = value ? value.id : null;
+    }
+});
+const selectedPobVillage = computed({
+    get() {
+        return pobVillages.value.find(v => v.id === studentObj.pob_village_id) || null;
+    },
+    set(value) {
+        studentObj.pob_village_id = value ? value.id : null;
+    }
+});
+
+const selectedPorProvince = computed({
+    get() {
+        return provinces.value.find(p => p.id === studentObj.por_province_id) || null;
+    },
+    set(value) {
+        studentObj.por_province_id = value ? value.id : null;
+    }
+});
+const selectedPorDistrict = computed({
+    get() {
+        return porDistricts.value.find(d => d.id === studentObj.por_district_id) || null;
+    },
+    set(value) {
+        studentObj.por_district_id = value ? value.id : null;
+    }
+});
+const selectedPorCommune = computed({
+    get() {
+        return porCommunes.value.find(c => c.id === studentObj.por_commune_id) || null;
+    },
+    set(value) {
+        studentObj.por_commune_id = value ? value.id : null;
+    }
+});
+const selectedPorVillage = computed({
+    get() {
+        return porVillages.value.find(v => v.id === studentObj.por_village_id) || null;
+    },
+    set(value) {
+        studentObj.por_village_id = value ? value.id : null;
+    }
+});
 
 const studentObj = reactive({
     id: null,
